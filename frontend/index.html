@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CubeMaker3D — Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="logo-container">
+        <img src="img_header.jpg" alt="Logo da empresa" class="logo-site">
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="marcas">Marcas</button>
+    <button class="tab-btn" data-tab="cores">Cores</button>
+    <button class="tab-btn" data-tab="materiais">Materiais</button>
+    <button class="tab-btn" data-tab="filamentos">Filamentos</button>
+  </nav>
+
+  <main class="layout">
+
+    <!-- Aba: Marcas -->
+    <section class="tab-panel active" id="tab-marcas">
+      <div class="panel panel-narrow">
+        <div class="panel-head">
+          <h2>Marcas</h2>
+          <p class="panel-sub">Fabricantes dos filamentos, ex: Bambu Lab, eSun.</p>
+        </div>
+        <form class="inline-form" data-tabela="marcas">
+          <input type="text" name="nome" placeholder="Nome da marca" required>
+          <button type="submit" class="btn-primary">Adicionar</button>
+        </form>
+        <p class="form-msg" data-msg="marcas"></p>
+        <ul class="simple-list" data-lista="marcas"></ul>
+        <p class="empty-state" data-vazio="marcas">Nenhuma marca cadastrada ainda.</p>
+      </div>
+    </section>
+
+    <!-- Aba: Cores -->
+    <section class="tab-panel" id="tab-cores">
+      <div class="panel panel-narrow">
+        <div class="panel-head">
+          <h2>Cores</h2>
+          <p class="panel-sub">Cores disponíveis, ex: Branco, Preto, Azul.</p>
+        </div>
+        <form class="inline-form" data-tabela="cores">
+          <input type="text" name="nome" placeholder="Nome da cor" required>
+          <button type="submit" class="btn-primary">Adicionar</button>
+        </form>
+        <p class="form-msg" data-msg="cores"></p>
+        <ul class="simple-list" data-lista="cores"></ul>
+        <p class="empty-state" data-vazio="cores">Nenhuma cor cadastrada ainda.</p>
+      </div>
+    </section>
+
+    <!-- Aba: Materiais -->
+    <section class="tab-panel" id="tab-materiais">
+      <div class="panel panel-narrow">
+        <div class="panel-head">
+          <h2>Materiais</h2>
+          <p class="panel-sub">Tipos de material, ex: PLA, PETG, ABS, TPU.</p>
+        </div>
+        <form class="inline-form" data-tabela="materiais">
+          <input type="text" name="nome" placeholder="Nome do material" required>
+          <button type="submit" class="btn-primary">Adicionar</button>
+        </form>
+        <p class="form-msg" data-msg="materiais"></p>
+        <ul class="simple-list" data-lista="materiais"></ul>
+        <p class="empty-state" data-vazio="materiais">Nenhum material cadastrado ainda.</p>
+      </div>
+    </section>
+
+    <!-- Aba: Filamentos -->
+    <section class="tab-panel" id="tab-filamentos">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Filamentos</h2>
+          <p class="panel-sub">Combine marca, cor e material com os dados físicos do rolo.</p>
+        </div>
+
+        <form id="form-filamento" class="stack-form">
+          <div class="field-row field-row-3">
+            <label>Marca
+              <select name="marca_id" id="select-marca" required></select>
+            </label>
+            <label>Cor
+              <select name="cor_id" id="select-cor" required></select>
+            </label>
+            <label>Material
+              <select name="material_id" id="select-material" required></select>
+            </label>
+          </div>
+          <div class="field-row field-row-3">
+            <label>Diâmetro (mm)
+              <select name="diametro_mm" required>
+                <option value="1.75">1.75 mm</option>
+                <option value="2.85">2.85 mm</option>
+                <option value="3.00">3.00 mm</option>
+              </select>
+            </label>
+            <label>Peso do rolo (g)
+              <input type="number" name="peso_rolo_g" placeholder="1000" min="1" required value="1000">
+            </label>
+            <label>Quantidade de rolos
+              <input type="number" name="quantidade_rolos" placeholder="3" min="0" step="1" required value="1">
+            </label>
+          </div>
+          <button type="submit" class="btn-primary">Adicionar filamento</button>
+          <p class="form-msg" id="msg-filamento"></p>
+        </form>
+
+        <div class="table-wrap">
+          <table id="tabela-filamentos">
+            <thead>
+              <tr>
+                <th>Filamento</th>
+                <th>Diâmetro</th>
+                <th>Rolo</th>
+                <th>Estoque</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p class="empty-state" id="vazio-filamentos">Nenhum filamento cadastrado ainda. Cadastre ao menos uma marca, cor e material primeiro.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <p>Desenvolvido por Ewerton de Jesus Puppim — ADS, Impacta</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
