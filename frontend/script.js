@@ -230,9 +230,213 @@ document.addEventListener("click", async (e) => {
 
   if (e.target.matches("[data-tipo=filamento].remove")) {
     if (!confirm("Tem certeza que deseja excluir este filamento?")) return;
-    await fetch(`${API}/filamentos/${e.target.dataset.id}`, { method: "DELETE" });
+    const res = await fetch(`${API}/filamentos/${e.target.dataset.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const corpo = await res.json();
+      alert(corpo.erro || "Erro ao excluir.");
+      return;
+    }
     carregarFilamentos();
   }
+});
+
+// ---------- Produtos ----------
+
+const formProduto = document.getElementById("form-produto");
+const msgProduto = document.getElementById("msg-produto");
+const linhasFilamentos = document.getElementById("produto-filamentos-linhas");
+const btnAddFilamentoProduto = document.getElementById("btn-add-filamento-produto");
+const btnCancelarProduto = document.getElementById("btn-cancelar-produto");
+
+let filamentosDisponiveis = [];
+let produtosCarregados = [];
+let editandoProdutoId = null;
+
+function escaparHtml(texto) {
+  const div = document.createElement("div");
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
+function formatarReais(valor) {
+  return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function rotuloFilamento(f) {
+  return `${f.marca_nome} — ${f.cor_nome} (${f.material_nome}, ${f.diametro_mm.toFixed(2)} mm)`;
+}
+
+function opcoesDeFilamento(selecionadoId) {
+  return filamentosDisponiveis.map(f => {
+    const selecionado = Number(selecionadoId) === f.id ? "selected" : "";
+    return `<option value="${f.id}" ${selecionado}>${escaparHtml(rotuloFilamento(f))}</option>`;
+  }).join("");
+}
+
+async function carregarFilamentosDisponiveis() {
+  const res = await fetch(`${API}/filamentos`);
+  filamentosDisponiveis = await res.json();
+}
+
+function adicionarLinhaFilamento(filamentoId = "", pesoG = "") {
+  if (filamentosDisponiveis.length === 0) {
+    msgProduto.textContent = "Cadastre ao menos um filamento antes de montar um produto.";
+    msgProduto.className = "form-msg error";
+    return;
+  }
+
+  const linha = document.createElement("div");
+  linha.className = "filamento-linha";
+  linha.innerHTML = `
+    <select class="linha-filamento" required>${opcoesDeFilamento(filamentoId)}</select>
+    <input type="number" class="linha-peso" placeholder="Peso gasto (g)" min="0.1" step="0.1" value="${pesoG}" required>
+    <button type="button" class="btn-text remove btn-remover-linha">Remover</button>
+  `;
+  linhasFilamentos.appendChild(linha);
+}
+
+// Atualiza as opcoes dos selects ja existentes sem perder o que foi escolhido
+function atualizarSelectsDasLinhas() {
+  linhasFilamentos.querySelectorAll(".linha-filamento").forEach(select => {
+    const valorAtual = select.value;
+    select.innerHTML = opcoesDeFilamento(valorAtual);
+  });
+}
+
+function reiniciarFormularioProduto() {
+  formProduto.reset();
+  linhasFilamentos.innerHTML = "";
+  adicionarLinhaFilamento();
+  editandoProdutoId = null;
+  formProduto.querySelector("button[type=submit]").textContent = "Adicionar produto";
+  btnCancelarProduto.hidden = true;
+}
+
+async function carregarProdutos() {
+  const res = await fetch(`${API}/produtos`);
+  produtosCarregados = await res.json();
+
+  const tbody = document.querySelector("#tabela-produtos tbody");
+  const vazio = document.getElementById("vazio-produtos");
+  tbody.innerHTML = "";
+  vazio.style.display = produtosCarregados.length === 0 ? "block" : "none";
+
+  produtosCarregados.forEach(p => {
+    const itens = p.filamentos.map(f =>
+      `<li>${escaparHtml(f.marca_nome)} — ${escaparHtml(f.cor_nome)} (${escaparHtml(f.material_nome)}): ${f.peso_g}g</li>`
+    ).join("");
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <div class="item-primary">${escaparHtml(p.nome)}</div>
+        <ul class="produto-filamentos">${itens}</ul>
+      </td>
+      <td class="mono">${p.tempo_impressao_h} h</td>
+      <td class="mono">${p.peso_total_g}g</td>
+      <td class="mono">${formatarReais(p.preco_venda)}</td>
+      <td>
+        <button class="btn-text edit" data-tipo="produto" data-id="${p.id}">Editar</button>
+        <button class="btn-text remove" data-tipo="produto" data-id="${p.id}">Excluir</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+btnAddFilamentoProduto.addEventListener("click", () => adicionarLinhaFilamento());
+
+btnCancelarProduto.addEventListener("click", () => {
+  reiniciarFormularioProduto();
+  msgProduto.textContent = "";
+});
+
+formProduto.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const filamentos = [...linhasFilamentos.querySelectorAll(".filamento-linha")].map(linha => ({
+    filamento_id: parseInt(linha.querySelector(".linha-filamento").value),
+    peso_g: parseFloat(linha.querySelector(".linha-peso").value)
+  }));
+
+  const dados = {
+    nome: formProduto.nome.value.trim(),
+    tempo_impressao_h: parseFloat(formProduto.tempo_impressao_h.value),
+    preco_venda: parseFloat(formProduto.preco_venda.value),
+    filamentos
+  };
+
+  const editando = editandoProdutoId !== null;
+  const url = editando ? `${API}/produtos/${editandoProdutoId}` : `${API}/produtos`;
+
+  const res = await fetch(url, {
+    method: editando ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dados)
+  });
+
+  if (res.ok) {
+    reiniciarFormularioProduto();
+    msgProduto.textContent = editando ? "Produto atualizado." : "Produto adicionado.";
+    msgProduto.className = "form-msg success";
+    carregarProdutos();
+  } else {
+    const corpo = await res.json();
+    msgProduto.textContent = corpo.erro || "Erro ao salvar o produto.";
+    msgProduto.className = "form-msg error";
+  }
+});
+
+document.addEventListener("click", async (e) => {
+  if (e.target.matches(".btn-remover-linha")) {
+    // mantem sempre ao menos uma linha de filamento no formulario
+    if (linhasFilamentos.children.length > 1) e.target.closest(".filamento-linha").remove();
+    return;
+  }
+
+  if (e.target.matches("[data-tipo=produto].edit")) {
+    const p = produtosCarregados.find(x => x.id === Number(e.target.dataset.id));
+    if (!p) return;
+
+    await carregarFilamentosDisponiveis();
+
+    formProduto.nome.value = p.nome;
+    formProduto.tempo_impressao_h.value = p.tempo_impressao_h;
+    formProduto.preco_venda.value = p.preco_venda;
+
+    linhasFilamentos.innerHTML = "";
+    p.filamentos.forEach(f => adicionarLinhaFilamento(f.filamento_id, f.peso_g));
+
+    editandoProdutoId = p.id;
+    formProduto.querySelector("button[type=submit]").textContent = "Salvar alteração";
+    btnCancelarProduto.hidden = false;
+    msgProduto.textContent = "";
+    document.querySelector('[data-tab="produtos"]').click();
+    formProduto.scrollIntoView({ behavior: "smooth" });
+  }
+
+  if (e.target.matches("[data-tipo=produto].remove")) {
+    if (!confirm("Tem certeza que deseja excluir este produto?")) return;
+    const res = await fetch(`${API}/produtos/${e.target.dataset.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const corpo = await res.json();
+      alert(corpo.erro || "Erro ao excluir.");
+      return;
+    }
+    if (editandoProdutoId === Number(e.target.dataset.id)) reiniciarFormularioProduto();
+    carregarProdutos();
+  }
+});
+
+// Ao abrir a aba, recarrega filamentos e produtos (podem ter mudado em outras abas)
+document.querySelector('[data-tab="produtos"]').addEventListener("click", async () => {
+  await carregarFilamentosDisponiveis();
+  if (linhasFilamentos.children.length === 0) {
+    adicionarLinhaFilamento();
+  } else {
+    atualizarSelectsDasLinhas();
+  }
+  carregarProdutos();
 });
 
 // ---------- Inicialização ----------
@@ -240,3 +444,5 @@ document.addEventListener("click", async (e) => {
 RECURSOS_SIMPLES.forEach(carregarSimples);
 atualizarSelectsDeFilamento();
 carregarFilamentos();
+carregarFilamentosDisponiveis().then(() => adicionarLinhaFilamento());
+carregarProdutos();

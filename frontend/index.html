@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CubeMaker3D — Management</title>
+  <title>FilaStock — Cadastro de Filamentos</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -11,8 +11,12 @@
 <body>
 
   <header class="topbar">
-    <div class="logo-container">
-        <img src="img_header.jpg" alt="Logo da empresa" class="logo-site">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <span class="brand-name">CubeMaker3D</span>
+      </div>
+      <p class="brand-tagline">Cadastro de filamentos e dados auxiliares</p>
     </div>
   </header>
 
@@ -21,6 +25,7 @@
     <button class="tab-btn" data-tab="cores">Cores</button>
     <button class="tab-btn" data-tab="materiais">Materiais</button>
     <button class="tab-btn" data-tab="filamentos">Filamentos</button>
+    <button class="tab-btn" data-tab="produtos">Produtos</button>
   </nav>
 
   <main class="layout">
@@ -105,10 +110,10 @@
               </select>
             </label>
             <label>Peso do rolo (g)
-              <input type="number" name="peso_rolo_g" placeholder="1000" min="1" required value="1000">
+              <input type="number" name="peso_rolo_g" placeholder="1000" min="1" required>
             </label>
             <label>Quantidade de rolos
-              <input type="number" name="quantidade_rolos" placeholder="3" min="0" step="1" required value="1">
+              <input type="number" name="quantidade_rolos" placeholder="3" min="0" step="1" required>
             </label>
           </div>
           <button type="submit" class="btn-primary">Adicionar filamento</button>
@@ -129,6 +134,60 @@
             <tbody></tbody>
           </table>
           <p class="empty-state" id="vazio-filamentos">Nenhum filamento cadastrado ainda. Cadastre ao menos uma marca, cor e material primeiro.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Aba: Produtos -->
+    <section class="tab-panel" id="tab-produtos">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Produtos</h2>
+          <p class="panel-sub">Peças que você imprime e vende, com os filamentos e o peso gasto em cada uma.</p>
+        </div>
+
+        <form id="form-produto" class="stack-form">
+          <label>Nome do produto
+            <input type="text" name="nome" placeholder="Ex: Chaveiro bicolor" maxlength="100" required>
+          </label>
+          <div class="field-row">
+            <label>Tempo de impressão (horas)
+              <input type="number" name="tempo_impressao_h" placeholder="1.5" min="0.1" step="0.1" required>
+            </label>
+            <label>Preço de venda (R$)
+              <input type="number" name="preco_venda" placeholder="15.90" min="0" step="0.01" required>
+            </label>
+          </div>
+
+          <div class="filamentos-box">
+            <div class="filamentos-box-head">
+              <span>Filamentos usados</span>
+              <button type="button" id="btn-add-filamento-produto" class="btn-secondary">+ Adicionar filamento</button>
+            </div>
+            <div id="produto-filamentos-linhas"></div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Adicionar produto</button>
+            <button type="button" id="btn-cancelar-produto" class="btn-secondary" hidden>Cancelar edição</button>
+          </div>
+          <p class="form-msg" id="msg-produto"></p>
+        </form>
+
+        <div class="table-wrap">
+          <table id="tabela-produtos">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Tempo</th>
+                <th>Peso total</th>
+                <th>Preço</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p class="empty-state" id="vazio-produtos">Nenhum produto cadastrado ainda. Cadastre ao menos um filamento primeiro.</p>
         </div>
       </div>
     </section>
