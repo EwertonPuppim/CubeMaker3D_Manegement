@@ -1,3 +1,8 @@
+"""
+Ponto de entrada da aplicacao.
+Expoe a API REST (camada fina, apenas traduz HTTP <-> chamadas de servico)
+e serve o frontend estatico.
+"""
 
 from flask import Flask, jsonify, request, send_from_directory
 import os
@@ -10,6 +15,7 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
+# tabela SQL e nome da coluna de chave estrangeira em "filamentos" para cada cadastro simples
 CADASTROS_SIMPLES = {
     "marcas": "marca_id",
     "cores": "cor_id",
@@ -109,6 +115,53 @@ def put_filamento(filamento_id):
 def delete_filamento(filamento_id):
     try:
         services.remover_filamento(filamento_id)
+        return "", 204
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+# ---------- API: Produtos ----------
+
+@app.route("/api/produtos", methods=["GET"])
+def get_produtos():
+    return jsonify(services.obter_produtos())
+
+
+@app.route("/api/produtos", methods=["POST"])
+def post_produto():
+    dados = request.get_json(force=True)
+    try:
+        novo_id = services.cadastrar_produto(
+            nome=dados.get("nome"),
+            tempo_impressao_h=dados.get("tempo_impressao_h"),
+            preco_venda=dados.get("preco_venda"),
+            filamentos=dados.get("filamentos"),
+        )
+        return jsonify({"id": novo_id}), 201
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+@app.route("/api/produtos/<int:produto_id>", methods=["PUT"])
+def put_produto(produto_id):
+    dados = request.get_json(force=True)
+    try:
+        services.atualizar_produto(
+            produto_id,
+            nome=dados.get("nome"),
+            tempo_impressao_h=dados.get("tempo_impressao_h"),
+            preco_venda=dados.get("preco_venda"),
+            filamentos=dados.get("filamentos"),
+        )
+        return "", 204
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+@app.route("/api/produtos/<int:produto_id>", methods=["DELETE"])
+def delete_produto(produto_id):
+    try:
+        services.remover_produto(produto_id)
         return "", 204
     except RegraDeNegocioError as e:
         return jsonify({"erro": str(e)}), 400
