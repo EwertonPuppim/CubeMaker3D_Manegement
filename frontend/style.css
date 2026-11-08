@@ -345,3 +345,52 @@ td {
   color: var(--text-muted);
   font-size: 0.82rem;
 }
+
+/* ---------- Pedidos ---------- */
+
+.pedido-item-linha {
+  display: grid;
+  grid-template-columns: 1fr 100px 110px auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pedido-item-linha input,
+.pedido-item-linha select {
+  background: #fff;
+  min-width: 0;
+}
+
+.linha-subtotal {
+  text-align: right;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .pedido-item-linha { grid-template-columns: 1fr; }
+  .linha-subtotal { text-align: left; }
+}
+
+.total-estimado {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  text-align: right;
+  font-size: 0.9rem;
+}
+
+.status-select {
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 999px;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.status-pendente { color: #8a5a00; background: #fbf1dc; border-color: var(--spool-amber); }
+.status-em-producao { color: var(--spool-teal-dark); background: #e6f1f1; border-color: var(--spool-teal); }
+.status-concluido { color: #fff; background: var(--spool-teal-dark); border-color: var(--spool-teal-dark); }
+.status-cancelado { color: var(--danger); background: #f8e7e1; border-color: var(--danger); }

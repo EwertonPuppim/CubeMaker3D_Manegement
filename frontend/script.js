@@ -439,6 +439,282 @@ document.querySelector('[data-tab="produtos"]').addEventListener("click", async 
   carregarProdutos();
 });
 
+// ---------- Pedidos ----------
+
+const formPedido = document.getElementById("form-pedido");
+const msgPedido = document.getElementById("msg-pedido");
+const linhasPedido = document.getElementById("pedido-itens-linhas");
+const btnAddItemPedido = document.getElementById("btn-add-item-pedido");
+const btnCancelarPedido = document.getElementById("btn-cancelar-pedido");
+const selectStatusPedido = document.getElementById("select-status-pedido");
+const totalEstimado = document.getElementById("total-estimado");
+
+let produtosDisponiveis = [];
+let pedidosCarregados = [];
+let statusPedido = [];
+let editandoPedidoId = null;
+
+function classeDoStatus(status) {
+  const semAcento = status.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return "status-" + semAcento.toLowerCase().replace(/\s+/g, "-");
+}
+
+function dataHoje() {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+function formatarData(iso) {
+  const [ano, mes, dia] = iso.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
+function opcoesDeStatus(selecionado) {
+  return statusPedido.map(st =>
+    `<option value="${escaparHtml(st)}" ${st === selecionado ? "selected" : ""}>${escaparHtml(st)}</option>`
+  ).join("");
+}
+
+async function carregarStatusPedido() {
+  const res = await fetch(`${API}/pedidos/status`);
+  statusPedido = await res.json();
+  selectStatusPedido.innerHTML = opcoesDeStatus(statusPedido[0]);
+}
+
+async function carregarProdutosDisponiveis() {
+  const res = await fetch(`${API}/produtos`);
+  produtosDisponiveis = await res.json();
+}
+
+function opcoesDeProduto(selecionadoId) {
+  return produtosDisponiveis.map(p => {
+    const selecionado = Number(selecionadoId) === p.id ? "selected" : "";
+    return `<option value="${p.id}" ${selecionado}>${escaparHtml(p.nome)} — ${formatarReais(p.preco_venda)}</option>`;
+  }).join("");
+}
+
+// Preco usado na linha: se o produto continua o mesmo de um pedido ja gravado,
+// vale o preco da epoca da venda; caso contrario, o preco atual do produto.
+function precoDaLinha(linha) {
+  const produtoId = Number(linha.querySelector(".linha-produto").value);
+  if (linha.dataset.precoOriginal !== "" && Number(linha.dataset.produtoOriginal) === produtoId) {
+    return Number(linha.dataset.precoOriginal);
+  }
+  const produto = produtosDisponiveis.find(p => p.id === produtoId);
+  return produto ? produto.preco_venda : 0;
+}
+
+function atualizarTotalPedido() {
+  let total = 0;
+  linhasPedido.querySelectorAll(".pedido-item-linha").forEach(linha => {
+    const quantidade = parseInt(linha.querySelector(".linha-quantidade").value) || 0;
+    const subtotal = quantidade * precoDaLinha(linha);
+    linha.querySelector(".linha-subtotal").textContent = formatarReais(subtotal);
+    total += subtotal;
+  });
+  totalEstimado.textContent = formatarReais(total);
+}
+
+function adicionarLinhaPedido(produtoId = "", quantidade = 1, precoOriginal = "") {
+  if (produtosDisponiveis.length === 0) {
+    msgPedido.textContent = "Cadastre ao menos um produto antes de registrar um pedido.";
+    msgPedido.className = "form-msg error";
+    return;
+  }
+
+  const linha = document.createElement("div");
+  linha.className = "pedido-item-linha";
+  linha.dataset.produtoOriginal = produtoId;
+  linha.dataset.precoOriginal = precoOriginal;
+  linha.innerHTML = `
+    <select class="linha-produto" required>${opcoesDeProduto(produtoId)}</select>
+    <input type="number" class="linha-quantidade" min="1" step="1" value="${quantidade}" required>
+    <span class="linha-subtotal mono"></span>
+    <button type="button" class="btn-text remove btn-remover-item-pedido">Remover</button>
+  `;
+  linhasPedido.appendChild(linha);
+  atualizarTotalPedido();
+}
+
+// Atualiza as opcoes dos selects ja existentes sem perder o que foi escolhido
+function atualizarSelectsDasLinhasPedido() {
+  linhasPedido.querySelectorAll(".linha-produto").forEach(select => {
+    const valorAtual = select.value;
+    select.innerHTML = opcoesDeProduto(valorAtual);
+  });
+  atualizarTotalPedido();
+}
+
+function reiniciarFormularioPedido() {
+  formPedido.reset();
+  formPedido.data_pedido.value = dataHoje();
+  selectStatusPedido.innerHTML = opcoesDeStatus(statusPedido[0]);
+  linhasPedido.innerHTML = "";
+  adicionarLinhaPedido();
+  atualizarTotalPedido();
+  editandoPedidoId = null;
+  formPedido.querySelector("button[type=submit]").textContent = "Registrar pedido";
+  btnCancelarPedido.hidden = true;
+}
+
+async function carregarPedidos() {
+  const res = await fetch(`${API}/pedidos`);
+  pedidosCarregados = await res.json();
+
+  const tbody = document.querySelector("#tabela-pedidos tbody");
+  const vazio = document.getElementById("vazio-pedidos");
+  tbody.innerHTML = "";
+  vazio.style.display = pedidosCarregados.length === 0 ? "block" : "none";
+
+  pedidosCarregados.forEach(p => {
+    const itens = p.itens.map(i =>
+      `<li>${i.quantidade}x ${escaparHtml(i.produto_nome)} (${formatarReais(i.preco_unitario)})</li>`
+    ).join("");
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">#${p.id}</td>
+      <td>
+        <div class="item-primary">${escaparHtml(p.cliente_nome)}</div>
+        <ul class="produto-filamentos">${itens}</ul>
+      </td>
+      <td class="mono">${formatarData(p.data_pedido)}</td>
+      <td>
+        <select class="status-select ${classeDoStatus(p.status)}" data-id="${p.id}">
+          ${opcoesDeStatus(p.status)}
+        </select>
+      </td>
+      <td class="mono">${formatarReais(p.valor_total)}</td>
+      <td>
+        <button class="btn-text edit" data-tipo="pedido" data-id="${p.id}">Editar</button>
+        <button class="btn-text remove" data-tipo="pedido" data-id="${p.id}">Excluir</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+btnAddItemPedido.addEventListener("click", () => adicionarLinhaPedido());
+
+btnCancelarPedido.addEventListener("click", () => {
+  reiniciarFormularioPedido();
+  msgPedido.textContent = "";
+});
+
+linhasPedido.addEventListener("input", atualizarTotalPedido);
+linhasPedido.addEventListener("change", atualizarTotalPedido);
+
+formPedido.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const itens = [...linhasPedido.querySelectorAll(".pedido-item-linha")].map(linha => ({
+    produto_id: parseInt(linha.querySelector(".linha-produto").value),
+    quantidade: parseInt(linha.querySelector(".linha-quantidade").value)
+  }));
+
+  const dados = {
+    cliente_nome: formPedido.cliente_nome.value.trim(),
+    data_pedido: formPedido.data_pedido.value,
+    status: formPedido.status.value,
+    itens
+  };
+
+  const editando = editandoPedidoId !== null;
+  const url = editando ? `${API}/pedidos/${editandoPedidoId}` : `${API}/pedidos`;
+
+  const res = await fetch(url, {
+    method: editando ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dados)
+  });
+
+  if (res.ok) {
+    reiniciarFormularioPedido();
+    msgPedido.textContent = editando ? "Pedido atualizado." : "Pedido registrado.";
+    msgPedido.className = "form-msg success";
+    carregarPedidos();
+  } else {
+    const corpo = await res.json();
+    msgPedido.textContent = corpo.erro || "Erro ao salvar o pedido.";
+    msgPedido.className = "form-msg error";
+  }
+});
+
+// Troca de status direto na tabela
+document.addEventListener("change", async (e) => {
+  if (!e.target.matches(".status-select")) return;
+
+  const res = await fetch(`${API}/pedidos/${e.target.dataset.id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: e.target.value })
+  });
+
+  if (!res.ok) {
+    const corpo = await res.json();
+    alert(corpo.erro || "Erro ao alterar o status.");
+  }
+  carregarPedidos();
+});
+
+document.addEventListener("click", async (e) => {
+  if (e.target.matches(".btn-remover-item-pedido")) {
+    // mantem sempre ao menos uma linha de produto no formulario
+    if (linhasPedido.children.length > 1) {
+      e.target.closest(".pedido-item-linha").remove();
+      atualizarTotalPedido();
+    }
+    return;
+  }
+
+  if (e.target.matches("[data-tipo=pedido].edit")) {
+    const p = pedidosCarregados.find(x => x.id === Number(e.target.dataset.id));
+    if (!p) return;
+
+    await carregarProdutosDisponiveis();
+
+    formPedido.cliente_nome.value = p.cliente_nome;
+    formPedido.data_pedido.value = p.data_pedido;
+    selectStatusPedido.innerHTML = opcoesDeStatus(p.status);
+
+    linhasPedido.innerHTML = "";
+    p.itens.forEach(i => adicionarLinhaPedido(i.produto_id, i.quantidade, i.preco_unitario));
+    atualizarTotalPedido();
+
+    editandoPedidoId = p.id;
+    formPedido.querySelector("button[type=submit]").textContent = "Salvar alteração";
+    btnCancelarPedido.hidden = false;
+    msgPedido.textContent = "";
+    document.querySelector('[data-tab="pedidos"]').click();
+    formPedido.scrollIntoView({ behavior: "smooth" });
+  }
+
+  if (e.target.matches("[data-tipo=pedido].remove")) {
+    if (!confirm("Tem certeza que deseja excluir este pedido?")) return;
+    const res = await fetch(`${API}/pedidos/${e.target.dataset.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const corpo = await res.json();
+      alert(corpo.erro || "Erro ao excluir.");
+      return;
+    }
+    if (editandoPedidoId === Number(e.target.dataset.id)) reiniciarFormularioPedido();
+    carregarPedidos();
+  }
+});
+
+// Ao abrir a aba, recarrega produtos e pedidos (podem ter mudado em outras abas)
+document.querySelector('[data-tab="pedidos"]').addEventListener("click", async () => {
+  await carregarProdutosDisponiveis();
+  if (linhasPedido.children.length === 0) {
+    adicionarLinhaPedido();
+  } else {
+    atualizarSelectsDasLinhasPedido();
+  }
+  carregarPedidos();
+});
+
 // ---------- Inicialização ----------
 
 RECURSOS_SIMPLES.forEach(carregarSimples);
@@ -446,3 +722,7 @@ atualizarSelectsDeFilamento();
 carregarFilamentos();
 carregarFilamentosDisponiveis().then(() => adicionarLinhaFilamento());
 carregarProdutos();
+formPedido.data_pedido.value = dataHoje();
+carregarStatusPedido();
+carregarProdutosDisponiveis().then(() => adicionarLinhaPedido());
+carregarPedidos();

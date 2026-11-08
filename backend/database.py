@@ -81,6 +81,30 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pedidos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_nome TEXT NOT NULL,
+            data_pedido TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    """)
+
+    # Itens do pedido (N:N entre pedidos e produtos). O preco_unitario e
+    # gravado no momento da venda, para que mudar o preco do produto depois
+    # nao altere o valor de pedidos antigos.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pedido_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pedido_id INTEGER NOT NULL,
+            produto_id INTEGER NOT NULL,
+            quantidade INTEGER NOT NULL,
+            preco_unitario REAL NOT NULL,
+            FOREIGN KEY (pedido_id) REFERENCES pedidos (id) ON DELETE CASCADE,
+            FOREIGN KEY (produto_id) REFERENCES produtos (id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -287,5 +311,121 @@ def atualizar_produto(produto_id, nome, tempo_impressao_h, preco_venda, itens):
 def deletar_produto(produto_id):
     conn = get_connection()
     conn.execute("DELETE FROM produtos WHERE id = ?", (produto_id,))  # CASCADE apaga os itens
+    conn.commit()
+    conn.close()
+
+
+def contar_pedidos_usando_produto(produto_id):
+    """Conta quantos pedidos incluem um determinado produto."""
+    conn = get_connection()
+    total = conn.execute(
+        "SELECT COUNT(DISTINCT pedido_id) AS total FROM pedido_itens WHERE produto_id = ?",
+        (produto_id,)
+    ).fetchone()["total"]
+    conn.close()
+    return total
+
+
+# ---------- Pedidos ----------
+
+def inserir_pedido(cliente_nome, data_pedido, status, itens):
+    """Insere o pedido e seus itens na mesma transacao."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO pedidos (cliente_nome, data_pedido, status) VALUES (?, ?, ?)",
+            (cliente_nome, data_pedido, status)
+        )
+        pedido_id = cursor.lastrowid
+        for item in itens:
+            cursor.execute(
+                """INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario)
+                   VALUES (?, ?, ?, ?)""",
+                (pedido_id, item["produto_id"], item["quantidade"], item["preco_unitario"])
+            )
+        conn.commit()
+        return pedido_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def listar_pedidos():
+    conn = get_connection()
+    pedidos = [dict(p) for p in conn.execute(
+        "SELECT * FROM pedidos ORDER BY data_pedido DESC, id DESC"
+    ).fetchall()]
+
+    linhas = conn.execute("""
+        SELECT pi.pedido_id, pi.produto_id, pi.quantidade, pi.preco_unitario,
+               produtos.nome AS produto_nome
+        FROM pedido_itens pi
+        JOIN produtos ON pi.produto_id = produtos.id
+        ORDER BY pi.id ASC
+    """).fetchall()
+    conn.close()
+
+    por_pedido = {}
+    for l in linhas:
+        por_pedido.setdefault(l["pedido_id"], []).append(dict(l))
+
+    for p in pedidos:
+        p["itens"] = por_pedido.get(p["id"], [])
+    return pedidos
+
+
+def buscar_pedido(pedido_id):
+    conn = get_connection()
+    linha = conn.execute("SELECT * FROM pedidos WHERE id = ?", (pedido_id,)).fetchone()
+    conn.close()
+    return dict(linha) if linha else None
+
+
+def listar_itens_do_pedido(pedido_id):
+    conn = get_connection()
+    linhas = conn.execute(
+        "SELECT produto_id, quantidade, preco_unitario FROM pedido_itens WHERE pedido_id = ?",
+        (pedido_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(l) for l in linhas]
+
+
+def atualizar_pedido(pedido_id, cliente_nome, data_pedido, status, itens):
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE pedidos SET cliente_nome = ?, data_pedido = ?, status = ? WHERE id = ?",
+            (cliente_nome, data_pedido, status, pedido_id)
+        )
+        cursor.execute("DELETE FROM pedido_itens WHERE pedido_id = ?", (pedido_id,))
+        for item in itens:
+            cursor.execute(
+                """INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario)
+                   VALUES (?, ?, ?, ?)""",
+                (pedido_id, item["produto_id"], item["quantidade"], item["preco_unitario"])
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def atualizar_status_pedido(pedido_id, status):
+    conn = get_connection()
+    conn.execute("UPDATE pedidos SET status = ? WHERE id = ?", (status, pedido_id))
+    conn.commit()
+    conn.close()
+
+
+def deletar_pedido(pedido_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM pedidos WHERE id = ?", (pedido_id,))  # CASCADE apaga os itens
     conn.commit()
     conn.close()

@@ -167,6 +167,68 @@ def delete_produto(produto_id):
         return jsonify({"erro": str(e)}), 400
 
 
+# ---------- API: Pedidos ----------
+
+@app.route("/api/pedidos/status", methods=["GET"])
+def get_status_pedido():
+    return jsonify(list(services.STATUS_PEDIDO))
+
+
+@app.route("/api/pedidos", methods=["GET"])
+def get_pedidos():
+    return jsonify(services.obter_pedidos())
+
+
+@app.route("/api/pedidos", methods=["POST"])
+def post_pedido():
+    dados = request.get_json(force=True)
+    try:
+        novo_id = services.cadastrar_pedido(
+            cliente_nome=dados.get("cliente_nome"),
+            data_pedido=dados.get("data_pedido"),
+            status=dados.get("status"),
+            itens=dados.get("itens"),
+        )
+        return jsonify({"id": novo_id}), 201
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+@app.route("/api/pedidos/<int:pedido_id>", methods=["PUT"])
+def put_pedido(pedido_id):
+    dados = request.get_json(force=True)
+    try:
+        services.atualizar_pedido(
+            pedido_id,
+            cliente_nome=dados.get("cliente_nome"),
+            data_pedido=dados.get("data_pedido"),
+            status=dados.get("status"),
+            itens=dados.get("itens"),
+        )
+        return "", 204
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+@app.route("/api/pedidos/<int:pedido_id>/status", methods=["PATCH"])
+def patch_status_pedido(pedido_id):
+    dados = request.get_json(force=True)
+    try:
+        services.alterar_status_pedido(pedido_id, dados.get("status"))
+        return "", 204
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
+@app.route("/api/pedidos/<int:pedido_id>", methods=["DELETE"])
+def delete_pedido(pedido_id):
+    try:
+        services.remover_pedido(pedido_id)
+        return "", 204
+    except RegraDeNegocioError as e:
+        return jsonify({"erro": str(e)}), 400
+
+
 if __name__ == "__main__":
     database.init_db()
     app.run(debug=True, port=5000)

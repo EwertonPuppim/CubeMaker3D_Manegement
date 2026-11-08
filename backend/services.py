@@ -6,9 +6,12 @@ HTTP nem sobre SQL diretamente - ela conversa apenas com a camada de dados
 (database.py) e aplica as validacoes necessarias.
 """
 
+from datetime import date, datetime
+
 import database
 
 DIAMETROS_VALIDOS = (1.75, 2.85, 3.00)
+STATUS_PEDIDO = ("Pendente", "Em produção", "Concluído", "Cancelado")
 
 
 class RegraDeNegocioError(Exception):
@@ -179,4 +182,102 @@ def atualizar_produto(produto_id, nome, tempo_impressao_h, preco_venda, filament
 def remover_produto(produto_id):
     if not database.buscar_produto(produto_id):
         raise RegraDeNegocioError("Produto nao encontrado.")
+
+    em_uso = database.contar_pedidos_usando_produto(produto_id)
+    if em_uso > 0:
+        raise RegraDeNegocioError(
+            f"Nao e possivel excluir: este produto esta em {em_uso} pedido(s) cadastrado(s)."
+        )
+
     database.deletar_produto(produto_id)
+
+
+# ---------- Pedidos ----------
+
+def _validar_pedido(cliente_nome, data_pedido, status, itens, itens_antigos=None):
+    """Valida os dados e devolve (cliente, data, status, itens prontos para gravar).
+
+    itens_antigos: itens ja gravados (na edicao). Produtos que continuam no
+    pedido mantem o preco da epoca da venda; produtos novos usam o preco atual.
+    """
+    cliente_nome = (cliente_nome or "").strip()
+    if not cliente_nome:
+        raise RegraDeNegocioError("O nome do cliente e obrigatorio.")
+    if len(cliente_nome) > 100:
+        raise RegraDeNegocioError("O nome do cliente deve ter no maximo 100 caracteres.")
+
+    if not data_pedido:
+        data_pedido = date.today().isoformat()
+    try:
+        datetime.strptime(data_pedido, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise RegraDeNegocioError("Data do pedido invalida.")
+
+    status = status or STATUS_PEDIDO[0]
+    if status not in STATUS_PEDIDO:
+        raise RegraDeNegocioError("Status invalido.")
+
+    if not itens:
+        raise RegraDeNegocioError("Informe ao menos um produto no pedido.")
+
+    precos_antigos = {i["produto_id"]: i["preco_unitario"] for i in (itens_antigos or [])}
+    ids_vistos = set()
+    itens_validos = []
+    for item in itens:
+        produto_id = item.get("produto_id")
+        quantidade = item.get("quantidade")
+
+        produto = database.buscar_produto(produto_id)
+        if not produto:
+            raise RegraDeNegocioError("Um dos produtos selecionados nao existe.")
+        if produto_id in ids_vistos:
+            raise RegraDeNegocioError("O mesmo produto foi informado mais de uma vez.")
+        if not isinstance(quantidade, int) or isinstance(quantidade, bool) or quantidade <= 0:
+            raise RegraDeNegocioError("A quantidade de cada produto deve ser um numero inteiro maior que zero.")
+
+        ids_vistos.add(produto_id)
+        itens_validos.append({
+            "produto_id": produto_id,
+            "quantidade": quantidade,
+            "preco_unitario": precos_antigos.get(produto_id, produto["preco_venda"]),
+        })
+
+    return cliente_nome, data_pedido, status, itens_validos
+
+
+def cadastrar_pedido(cliente_nome, data_pedido, status, itens):
+    cliente, data, status, itens_validos = _validar_pedido(cliente_nome, data_pedido, status, itens)
+    return database.inserir_pedido(cliente, data, status, itens_validos)
+
+
+def obter_pedidos():
+    pedidos = database.listar_pedidos()
+    for p in pedidos:
+        for item in p["itens"]:
+            item["subtotal"] = round(item["quantidade"] * item["preco_unitario"], 2)
+        p["valor_total"] = round(sum(i["subtotal"] for i in p["itens"]), 2)
+    return pedidos
+
+
+def atualizar_pedido(pedido_id, cliente_nome, data_pedido, status, itens):
+    if not database.buscar_pedido(pedido_id):
+        raise RegraDeNegocioError("Pedido nao encontrado.")
+    itens_antigos = database.listar_itens_do_pedido(pedido_id)
+    cliente, data, status, itens_validos = _validar_pedido(
+        cliente_nome, data_pedido, status, itens, itens_antigos
+    )
+    database.atualizar_pedido(pedido_id, cliente, data, status, itens_validos)
+
+
+def alterar_status_pedido(pedido_id, status):
+    if not database.buscar_pedido(pedido_id):
+        raise RegraDeNegocioError("Pedido nao encontrado.")
+    if status not in STATUS_PEDIDO:
+        raise RegraDeNegocioError("Status invalido.")
+    database.atualizar_status_pedido(pedido_id, status)
+
+
+def remover_pedido(pedido_id):
+    if not database.buscar_pedido(pedido_id):
+        raise RegraDeNegocioError("Pedido nao encontrado.")
+    database.deletar_pedido(pedido_id)
